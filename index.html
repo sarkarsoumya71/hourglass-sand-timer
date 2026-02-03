@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Hourglass Timer</title>
+    <style>
+        :root {
+            /* Futuristic Dark Background */
+            --bg-color: #0f1115;
+            --bg-gradient: radial-gradient(circle at center, #1e232d 0%, #0b0d10 100%);
+            
+            /* Chrome/Silver Sand */
+            --sand-light: #eef2f3;
+            --sand-dark: #8e9eab;
+            
+            /* Metal Cap Colors */
+            --metal-light: #5c6270;
+            --metal-dark: #1a1c23;
+            --metal-shine: #ffffff;
+
+            --text-color: #ffffff;
+            --accent-color: #4facfe; /* Cyan/Blue accent */
+            --font-stack: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', monospace;
+        }
+
+        body {
+            background: var(--bg-color);
+            background-image: var(--bg-gradient);
+            color: var(--text-color);
+            font-family: var(--font-stack);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* --- Tech Background Details (Subtle Grid) --- */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* --- UI Controls --- */
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+            z-index: 10;
+        }
+
+        input[type="number"] {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 30px;
+            width: 60px;
+            text-align: center;
+            font-size: 1.1rem;
+            outline: none;
+            font-family: var(--font-stack);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* Modern Pill Buttons */
+        button {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        button:hover {
+            border-color: rgba(255, 255, 255, 0.6);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+
+        button.start-btn {
+            border-color: rgba(79, 172, 254, 0.5);
+            color: #4facfe;
+            box-shadow: 0 0 10px rgba(79, 172, 254, 0.1);
+        }
+        
+        button.start-btn:hover {
+            background: rgba(79, 172, 254, 0.1);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(79, 172, 254, 0.3);
+        }
+
+        /* --- Realistic Hourglass Construction --- */
+        .hourglass-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.6));
+            transform: scale(1.2); /* Make it slightly larger */
+        }
+        
+        /* Animation Class for the Alarm Flash */
+        .alarm-active {
+            animation: alarm-flash 1.5s ease-in-out infinite;
+        }
+
+        @keyframes alarm-flash {
+            0%, 100% {
+                filter: drop-shadow(0 20px 30px rgba(0,0,0,0.6)) brightness(1);
+            }
+            50% {
+                /* Red glow and increased brightness */
+                filter: drop-shadow(0 0 40px rgba(255, 70, 70, 0.6)) brightness(1.3) sepia(0.5);
+            }
+        }
+
+        /* Metal Caps (Top and Bottom) */
+        .cap {
+            width: 140px;
+            height: 15px;
+            background: linear-gradient(to right, var(--metal-dark), var(--metal-light) 40%, var(--metal-shine) 50%, var(--metal-light) 60%, var(--metal-dark));
+            border-radius: 50%;
+            z-index: 5;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        
+        /* Add thickness to caps */
+        .cap::after {
+            content: '';
+            position: absolute;
+            left: 5%;
+            width: 90%;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.3);
+            bottom: -3px;
+            z-index: -1;
+            filter: blur(1px);
+        }
+
+        .cap.top { margin-bottom: -8px; }
+        .cap.bottom { margin-top: -8px; }
+
+        /* Main Glass Area */
+        .glass-container {
+            position: relative;
+            width: 120px;
+            height: 180px;
+        }
+
+        /* Masking Layer for Sand (The internal volume) */
+        .sand-mask {
+            width: 100%;
+            height: 100%;
+            clip-path: url(#bulb-curve);
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            /* Subtle glass tint */
+            background: rgba(200, 220, 255, 0.05);
+        }
+
+        /* --- Sand Styling (Silver/White) --- */
+        .sand-top, .sand-bottom, .sand-stream {
+            position: absolute;
+            width: 100%;
+            left: 0;
+            /* Textured Grainy Gradient for realistic sand */
+            background-image: 
+                radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9) 0%, transparent 20%),
+                linear-gradient(90deg, #8e9eab, #eef2f3 30%, #eef2f3 70%, #8e9eab);
+            background-size: 100% 100%, 100% 100%;
+        }
+
+        .sand-top {
+            top: 0;
+            height: 50%; 
+            transform-origin: bottom;
+            /* Inset shadow for depth at top of pile */
+            box-shadow: inset 0 -2px 10px rgba(0,0,0,0.3);
+        }
+        
+        /* Surface ripple on top sand */
+        .sand-top::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 20%);
+        }
+
+        .sand-bottom {
+            bottom: 0;
+            height: 50%;
+            transform-origin: bottom;
+            transform: scaleY(0); 
+            /* Highlight on pile */
+            box-shadow: inset 0 5px 15px rgba(255,255,255,0.2);
+            border-radius: 50% 50% 0 0 / 10% 10% 0 0; /* Slight mound curve */
+        }
+
+        .sand-stream {
+            width: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 50%;
+            height: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 2;
+            background: #fff;
+            box-shadow: 0 0 5px rgba(255,255,255,0.8);
+        }
+
+        .sand-stream.active {
+            height: 50%;
+            opacity: 1;
+        }
+
+        /* --- Glass Reflections (The glossy look) --- */
+        .glass-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 4;
+            clip-path: url(#bulb-curve);
+            /* Inner Glow */
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.1), inset 0 0 2px rgba(255,255,255,0.3);
+        }
+
+        /* Sharp Highlights */
+        .reflection-left {
+            position: absolute;
+            top: 10%; left: 15%;
+            width: 8px; height: 35%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.8), transparent);
+            border-radius: 10px;
+            filter: blur(1px);
+            z-index: 5;
+            opacity: 0.6;
+            transform: skewY(10deg);
+        }
+
+        .reflection-right {
+            position: absolute;
+            bottom: 10%; right: 15%;
+            width: 6px; height: 35%;
+            background: linear-gradient(to top, rgba(255,255,255,0.8), transparent);
+            border-radius: 10px;
+            filter: blur(1px);
+            z-index: 5;
+            opacity: 0.4;
+            transform: skewY(10deg);
+        }
+
+        /* --- Timer HUD --- */
+        .timer-display {
+            margin-top: 40px;
+            font-size: 3.5rem;
+            font-weight: 300;
+            letter-spacing: 5px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+            position: relative;
+        }
+        
+        /* Subtle line under timer */
+        .timer-display::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+            opacity: 0.5;
+        }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.8rem;
+            height: 20px;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Updated SVG Shape for a more realistic "Bulb" look -->
+    <svg width="0" height="0" style="position: absolute; pointer-events: none;">
+        <defs>
+            <clipPath id="bulb-curve" clipPathUnits="objectBoundingBox">
+                <path d="M 0 0 L 1 0 Q 0.95 0.45 0.53 0.5 Q 0.95 0.55 1 1 L 0 1 Q 0.05 0.55 0.47 0.5 Q 0.05 0.45 0 0 Z" />
+            </clipPath>
+        </defs>
+    </svg>
+
+    <div class="hourglass-wrapper" id="hourglassWrapper">
+        <!-- Top Cap -->
+        <div class="cap top"></div>
+        
+        <!-- Glass Body -->
+        <div class="glass-container">
+            <!-- Reflections Overlay -->
+            <div class="glass-overlay"></div>
+            <div class="reflection-left"></div>
+            <div class="reflection-right"></div>
+            
+            <!-- Internal Sand Volume -->
+            <div class="sand-mask">
+                <div class="sand-top" id="sandTop"></div>
+                <div class="sand-stream" id="sandStream"></div>
+                <div class="sand-bottom" id="sandBottom"></div>
+            </div>
+        </div>
+        
+        <!-- Bottom Cap -->
+        <div class="cap bottom"></div>
+    </div>
+
+    <div class="timer-display" id="display">00:00</div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="controls">
+        <input type="number" id="timeInput" min="1" max="60" placeholder="Min" value="1">
+        <button class="start-btn" onclick="startTimer()">Start</button>
+        <button onclick="resetTimer()">Reset</button>
+    </div>
+
+    <script>
+        let animationFrame;
+        let startTime;
+        let totalTimeMs;
+        let isRunning = false;
+        let audioCtx;
+
+        const sandTop = document.getElementById('sandTop');
+        const sandBottom = document.getElementById('sandBottom');
+        const sandStream = document.getElementById('sandStream');
+        const display = document.getElementById('display');
+        const timeInput = document.getElementById('timeInput');
+        const errorMsg = document.getElementById('errorMsg');
+        const hourglassWrapper = document.getElementById('hourglassWrapper');
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Helper to play a single glass-like tone
+        function playNote(freq, startTime) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            // Sine wave for clean "glassy" tone
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // Percussive Envelope: fast attack, exponential decay
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(0.2, startTime + 0.05); // quick soft attack
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 2.0); // long ringing decay
+            
+            osc.start(startTime);
+            osc.stop(startTime + 2.5); // stop after decay
+        }
+
+        function playAlarm() {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const now = audioCtx.currentTime;
+            
+            // Play a 3-note ascending major arpeggio (G Major ish)
+            // Loop the chime pattern to fill 10 seconds (4 repetitions * 2.5s)
+            for (let i = 0; i < 4; i++) {
+                const offset = i * 2.5; 
+                // G5 (783.99), B5 (987.77), D6 (1174.66)
+                playNote(784, now + offset);
+                playNote(988, now + offset + 0.25);
+                playNote(1175, now + offset + 0.5);
+            }
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+
+            // Initialize AudioContext on user interaction
+            initAudio();
+
+            const minutes = parseInt(timeInput.value);
+            
+            if (isNaN(minutes) || minutes <= 0) {
+                showError("Please enter a valid time.");
+                return;
+            }
+            if (minutes > 60) {
+                showError("Max time is 60 minutes.");
+                return;
+            }
+            showError("");
+
+            totalTimeMs = minutes * 60 * 1000;
+            startTime = performance.now();
+            isRunning = true;
+            sandStream.classList.add('active');
+            
+            timeInput.disabled = true;
+
+            loop();
+        }
+
+        function resetTimer() {
+            cancelAnimationFrame(animationFrame);
+            isRunning = false;
+            timeInput.disabled = false;
+            
+            sandTop.style.transform = 'scaleY(1)';
+            sandBottom.style.transform = 'scaleY(0)';
+            sandStream.classList.remove('active');
+            display.textContent = "00:00";
+            errorMsg.textContent = "";
+            
+            // Clean up blinking if active
+            hourglassWrapper.classList.remove('alarm-active');
+        }
+
+        function loop() {
+            const now = performance.now();
+            const elapsed = now - startTime;
+            const remaining = Math.max(0, totalTimeMs - elapsed);
+            
+            const progress = elapsed / totalTimeMs;
+            const remainingPercent = 1 - progress;
+
+            if (remaining <= 0) {
+                finish();
+                return;
+            }
+
+            sandTop.style.transform = `scaleY(${remainingPercent})`;
+            sandBottom.style.transform = `scaleY(${progress})`;
+            
+            updateDisplay(remaining);
+
+            animationFrame = requestAnimationFrame(loop);
+        }
+
+        function finish() {
+            isRunning = false;
+            timeInput.disabled = false;
+            sandTop.style.transform = 'scaleY(0)';
+            sandBottom.style.transform = 'scaleY(1)';
+            sandStream.classList.remove('active');
+            display.textContent = "00:00";
+
+            // Trigger Visual Alarm
+            hourglassWrapper.classList.remove('alarm-active'); 
+            void hourglassWrapper.offsetWidth; // Trigger reflow
+            hourglassWrapper.classList.add('alarm-active');
+            
+            // Stop flashing after 10 seconds to match the audio loop
+            setTimeout(() => {
+                 hourglassWrapper.classList.remove('alarm-active');
+            }, 10000);
+
+            // Trigger Glass Chime
+            playAlarm();
+        }
+
+        function updateDisplay(ms) {
+            const totalSeconds = Math.ceil(ms / 1000);
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            const h = Math.floor(m / 60);
+            const mDisp = m % 60;
+            
+            if (totalTimeMs >= 3600000) {
+                 display.textContent = `${String(h).padStart(2, '0')}:${String(mDisp).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            } else {
+                 display.textContent = `${String(mDisp).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+        }
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+        }
+    </script>
+</body>
+</html>
