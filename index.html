@@ -111,6 +111,122 @@
             box-shadow: 0 0 20px rgba(79, 172, 254, 0.3);
         }
 
+        /* --- World Clock Panel --- */
+        .clock-toggle-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 101;
+            padding: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .world-clock-panel {
+            position: fixed;
+            top: 0;
+            right: -400px; /* Hidden off-screen */
+            width: 350px;
+            height: 100vh;
+            background: rgba(15, 17, 21, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            transition: right 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.5);
+            padding: 80px 20px 20px 20px; /* Top padding clears the toggle button */
+            box-sizing: border-box;
+        }
+
+        .world-clock-panel.open {
+            right: 0;
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            color: var(--accent-color);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .clock-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .clock-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .clock-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .clock-time {
+            font-size: 1.1rem;
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .clock-date {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 3px;
+        }
+
+        /* Add Clock Form */
+        .add-clock-form {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .add-clock-form input, .add-clock-form select {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: var(--font-stack);
+            font-size: 0.8rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .add-clock-form select option {
+            background: #1a1c23;
+        }
+
+        .add-btn {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+        }
+
+
         /* --- Realistic Hourglass Construction --- */
         .hourglass-wrapper {
             position: relative;
@@ -320,6 +436,36 @@
         </defs>
     </svg>
 
+    <!-- Toggle Button for World Clock -->
+    <button class="clock-toggle-btn" onclick="toggleClockPanel()" title="World Clock">
+        🌍
+    </button>
+
+    <!-- Sliding World Clock Panel -->
+    <div class="world-clock-panel" id="worldClockPanel">
+        <div class="panel-title">World Clocks</div>
+        
+        <div class="clock-list" id="clockList">
+            <!-- Clocks will be injected here via JS -->
+        </div>
+
+        <div class="add-clock-form">
+            <input type="text" id="newClockLabel" placeholder="Label (e.g. Tokyo)">
+            <select id="newClockZone">
+                <option value="Asia/Kolkata">IST (India)</option>
+                <option value="America/Los_Angeles">PST/PDT (Pacific)</option>
+                <option value="America/New_York">EST/EDT (Eastern)</option>
+                <option value="Australia/Melbourne">Melbourne (AEST)</option>
+                <option value="Europe/London">London (GMT/BST)</option>
+                <option value="Europe/Paris">Paris (CET)</option>
+                <option value="Asia/Tokyo">Tokyo (JST)</option>
+                <option value="Asia/Dubai">Dubai (GST)</option>
+                <option value="UTC">UTC</option>
+            </select>
+            <button class="add-btn" onclick="addNewClock()">+ Add Clock</button>
+        </div>
+    </div>
+
     <div class="hourglass-wrapper" id="hourglassWrapper">
         <!-- Top Cap -->
         <div class="cap top"></div>
@@ -366,14 +512,84 @@
         const timeInput = document.getElementById('timeInput');
         const errorMsg = document.getElementById('errorMsg');
         const hourglassWrapper = document.getElementById('hourglassWrapper');
+        const worldClockPanel = document.getElementById('worldClockPanel');
+        const clockListEl = document.getElementById('clockList');
 
+        // --- World Clock Logic ---
+        let clocks = [
+            { label: 'India (IST)', zone: 'Asia/Kolkata' },
+            { label: 'Pacific (PST/PDT)', zone: 'America/Los_Angeles' },
+            { label: 'Eastern (EST/EDT)', zone: 'America/New_York' },
+            { label: 'Melbourne', zone: 'Australia/Melbourne' }
+        ];
+
+        function toggleClockPanel() {
+            worldClockPanel.classList.toggle('open');
+        }
+
+        function renderClocks() {
+            const now = new Date();
+            clockListEl.innerHTML = ''; // Clear current
+
+            clocks.forEach(clock => {
+                const item = document.createElement('div');
+                item.className = 'clock-item';
+                
+                // Format Time
+                const timeFormatter = new Intl.DateTimeFormat('en-US', {
+                    hour: 'numeric', minute: 'numeric', second: 'numeric',
+                    hour12: true,
+                    timeZone: clock.zone
+                });
+
+                // Format Date
+                const dateFormatter = new Intl.DateTimeFormat('en-US', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                    timeZone: clock.zone
+                });
+                
+                // Get offset string (rough approximation for display)
+                const timeString = timeFormatter.format(now);
+                const dateString = dateFormatter.format(now);
+
+                item.innerHTML = `
+                    <span class="clock-label">${clock.label}</span>
+                    <div class="clock-time">${timeString}</div>
+                    <div class="clock-date">${dateString}</div>
+                `;
+                clockListEl.appendChild(item);
+            });
+        }
+
+        function addNewClock() {
+            const labelInput = document.getElementById('newClockLabel');
+            const zoneInput = document.getElementById('newClockZone');
+            
+            if (labelInput.value.trim() === '') {
+                alert('Please enter a label');
+                return;
+            }
+
+            clocks.push({
+                label: labelInput.value,
+                zone: zoneInput.value
+            });
+            
+            labelInput.value = ''; // clear input
+            renderClocks(); // update immediately
+        }
+
+        // Update clocks every second
+        setInterval(renderClocks, 1000);
+        renderClocks(); // Initial render
+
+        // --- Hourglass Logic ---
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
         }
 
-        // Helper to play a single glass-like tone
         function playNote(freq, startTime) {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
